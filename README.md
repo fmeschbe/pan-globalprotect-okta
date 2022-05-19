@@ -1,3 +1,11 @@
+    This is my branch of the remote repository which adds support for legacy
+    TLS setup renegotiation. This has been disabled by OpenSSL 3 by default
+    and needs explicit enablement before setting up the TLS session.
+    See https://www.openssl.org/docs/man3.0/man3/SSL_clear_options.html#SECURE-RENEGOTIATION
+    for more information.
+    
+    My changes life in this fork's default branch `fmeschbe/openssl3`
+
 # pan-globalprotect-okta
 
 Command-line client for PaloAlto Networks' GlobalProtect VPN, integrated with OKTA.
