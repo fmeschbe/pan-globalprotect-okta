@@ -30,8 +30,13 @@
 """
 from __future__ import print_function
 import argparse, base64, getpass, io, os, re, shlex, signal, subprocess, sys, tempfile, time, traceback
+from ssl import SSL_ERROR_WANT_CONNECT, SSLContext
 import requests
 from lxml import etree
+
+from urllib3.poolmanager import PoolManager
+from urllib3.util.ssl_ import create_urllib3_context
+from requests.adapters import HTTPAdapter
 
 if sys.version_info >= (3,):
 	from urllib.parse import urlparse, urljoin  # pylint: disable=import-error
@@ -190,6 +195,25 @@ def parse_form(html, current_url=None):
 			data[k] = v
 	return url, data
 
+class LegacyServerConnectSslHttpAdapter(HTTPAdapter):
+    """"Transport adapter" that allows us to setup SSL with
+        the OpenSSL 3 OP_LEGACY_SERVER_CONNECT flag set as
+        this seems to be required by Adobe's instance of
+        Palo Alto Networks GlobalProtect."""
+
+    def init_poolmanager(self, connections, maxsize, block=False):
+        # From openssl/include/ssl.h
+        # define SSL_OP_BIT(n)  ((uint64_t)1 << (uint64_t)n)
+        # define SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION        SSL_OP_BIT(18)
+        OP_LEGACY_SERVER_CONNECT = 1 << 18
+
+        custom_ssl_context = create_urllib3_context()
+        custom_ssl_context.options |= OP_LEGACY_SERVER_CONNECT
+
+        super(LegacyServerConnectSslHttpAdapter, self).init_poolmanager(
+            connections=connections, maxsize=maxsize, block=block,
+            ssl_context=custom_ssl_context)
+
 class Conf(object):
 	def __init__(self):
 		# type: () -> None
@@ -323,6 +347,7 @@ class Conf(object):
 		conf.debug = conf._store.get('debug', '').lower() in ['1', 'true']
 		s = requests.Session()
 		s.headers['User-Agent'] = 'PAN GlobalProtect'
+		s.mount(conf.gateway_url, LegacyServerConnectSslHttpAdapter())
 		conf._session = s
 		return conf
 
